@@ -11,7 +11,7 @@ import SwiftUI
 struct AiLens3App: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            WelcomeView()
         }
     }
 }

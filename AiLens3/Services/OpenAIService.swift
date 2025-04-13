@@ -151,6 +151,85 @@ class OpenAIService {
         throw lastError ?? APIError.unknown
     }
     
+    func generateImage(prompt: String, size: String = "1024x1024", n: Int = 1) async throws -> UIImage {
+        // Create URL request
+        guard let url = URL(string: "https://api.openai.com/v1/images/generations") else {
+            throw APIError.invalidURL
+        }
+        
+        // Prepare request body
+        let requestBody: [String: Any] = [
+            "model": "dall-e-3", // Using DALL-E 3 for best quality
+            "prompt": prompt,
+            "n": n,
+            "size": size,
+            "response_format": "url"
+        ]
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
+        
+        // Configure session with extended timeouts
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60.0
+        config.timeoutIntervalForResource = 90.0
+        
+        let session = URLSession(configuration: config)
+        
+        // Implement retry logic
+        let maxAttempts = 3
+        var attempts = 0
+        var lastError: Error? = nil
+        
+        while attempts < maxAttempts {
+            attempts += 1
+            
+            do {
+                let (data, response) = try await session.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw APIError.invalidResponse
+                }
+                
+                if httpResponse.statusCode != 200 {
+                    if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                        throw APIError.serverError(message: errorResponse.error.message)
+                    } else {
+                        throw APIError.httpError(statusCode: httpResponse.statusCode)
+                    }
+                }
+                
+                // Parse response to get image URL
+                let decoder = JSONDecoder()
+                let urlResponse = try decoder.decode(OpenAIImageResponse.self, from: data)
+                
+                // Download the actual image from the URL
+                guard let imageURL = URL(string: urlResponse.data[0].url) else {
+                    throw APIError.invalidImageURL
+                }
+                
+                let (imageData, _) = try await session.data(from: imageURL)
+                
+                guard let image = UIImage(data: imageData) else {
+                    throw APIError.invalidImageData
+                }
+                
+                return image
+                
+            } catch {
+                lastError = error
+                
+                if attempts < maxAttempts {
+                    try await Task.sleep(nanoseconds: UInt64(attempts * 2 * 1_000_000_000))
+                }
+            }
+        }
+        
+        throw lastError ?? APIError.unknown
+    }
     // MARK: - Helper Methods
     
     private func convertToPngWithTransparency(image: UIImage) -> Data? {

@@ -299,13 +299,6 @@ struct ImagePicker: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - App Theme
-struct AppTheme {
-    static let primary = Color.blue
-    static let secondary = Color.purple
-    static let background = Color.white
-    static let text = Color.black
-}
 
 // MARK: - Preview
 struct ImageEditingView_Previews: PreviewProvider {
